@@ -92,7 +92,7 @@ struct page * kmod_get_page() {
     mm = ts->mm;
     if (mm == NULL) {
         printk(KERN_INFO "kmod: process has no mm\n");
-        return null;
+        return NULL;
     }
     vm_current = mm->mmap;
     long start = vm_current->vm_start;
@@ -107,7 +107,7 @@ struct page * kmod_get_page() {
     }
     if (page_struct == NULL) {
         printk(KERN_INFO "kmod: error getting page\n");
-        return null;
+        return NULL;
     }
     return page_struct;
 }
@@ -138,10 +138,10 @@ static int kmod_result_open(struct seq_file *sf, void *data) {
     }
     seq_printf(sf, "-----VFSMOUNT-----\n");
     seq_printf(sf, "mnt_flags: %uc\n", struct_vfsmount->mnt_flags);
-    seq_printf(sf, "superblock:{\n   blocksize_bits: %u\n", struct_vfsmount->mnt_sb->s_blocksize_bits);
-    seq_printf(sf, "   blocksize: %lu\n", struct_vfsmount->mnt_sb->s_blocksize);
-    seq_printf(sf, "   blocksize: %d\n", struct_vfsmount->mnt_sb->s_count);
-    seq_printf(sf, "   blocksize: %ld\n", struct_vfsmount->mnt_sb->s_maxbytes);
+    seq_printf(sf, "superblock:{\n   blocksize in bits: %u\n", struct_vfsmount->mnt_sb->s_blocksize_bits);
+    seq_printf(sf, "   blocksize in bytes: %lu\n", struct_vfsmount->mnt_sb->s_blocksize);
+    seq_printf(sf, "   ref count: %d\n", struct_vfsmount->mnt_sb->s_count);
+    seq_printf(sf, "   maximum files size: %ld\n", struct_vfsmount->mnt_sb->s_maxbytes);
     seq_printf(sf, "}\n");
     return 0;
 }

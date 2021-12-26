@@ -13,6 +13,7 @@
 #include <linux/mount.h>
 #include <linux/file.h>
 #include <linux/fs.h>
+#include <linux/mutex.h>
 
 #define BUFFER_SIZE 1024
 
@@ -25,22 +26,51 @@ static struct dentry *kmod_args_file;
 static struct dentry *kmod_result_file;
 static struct page* struct_page;
 static struct vfsmount* struct_vfsmount;
+struct mutex m;
 
 static int kmod_result_open(struct seq_file *sf, void *data);
 struct page * kmod_get_page(void);
 struct vfsmount * kmod_get_vfsmount(void);
 void set_result(void);
 
-int kmod_open(struct inode *inode, struct file *file) {
-    return single_open(file, kmod_result_open, inode->i_private);
+static int kmod_read(struct seq_file *sf, void *data) {
+    printk(KERN_INFO "kmod: suicide\n");
+    set_result();
+    if (struct_page == NULL) {
+    seq_printf (sf, "process has no mm =( \n");
+    } else {
+    seq_printf(sf, "-----PAGE-----\nflags: %ul\n", struct_page->flags);
+    seq_printf(sf, "refcount:{ \n   counter: %u\n", struct_page->_refcount.counter);
+    seq_printf(sf, "}\n\n");
+    }
+    seq_printf(sf, "-----VFSMOUNT-----\n");
+    seq_printf(sf, "mnt_flags: %uc\n", struct_vfsmount->mnt_flags);
+    seq_printf(sf, "superblock:{\n   blocksize in bits: %u\n", struct_vfsmount->mnt_sb->s_blocksize_bits);
+    seq_printf(sf, "   blocksize in bytes: %lu\n", struct_vfsmount->mnt_sb->s_blocksize);
+    seq_printf(sf, "   ref count: %d\n", struct_vfsmount->mnt_sb->s_count);
+    seq_printf(sf, "   maximum files size: %ld\n", struct_vfsmount->mnt_sb->s_maxbytes);
+    seq_printf(sf, "}\n");
 }
+
+static int kmod_open(struct inode *inode, struct file *file) {
+    mutex_lock(&m);
+    return single_open(file, kmod_read, inode->i_private);
+}
+
+
 static ssize_t kmod_args_write( struct file* ptr_file, const char __user* buffer, size_t length, loff_t* ptr_offset );
+
+static int kmod_release(struct inode *inode, struct file *filp) {
+    mutex_unlock(&m);
+    return 0;
+}
 
 static struct file_operations kmod_args_ops = {
         .owner   = THIS_MODULE,
         .read    = seq_read,
         .write   = kmod_args_write,
-        .open = kmod_open,
+        .open    = kmod_open,
+        .release = kmod_release,
 };
 
 static int fdesc = 0;
@@ -129,20 +159,12 @@ void set_result() {
 static int kmod_result_open(struct seq_file *sf, void *data) {
     printk(KERN_INFO "kmod: suicide\n");
     set_result();
-    if (struct_page == NULL) {
-        seq_printf (sf, "process has no mm =( \n");
-    } else {
-        seq_printf(sf, "-----PAGE-----\nflags: %ul\n", struct_page->flags);
-        seq_printf(sf, "refcount:{ \n   counter: %u\n", struct_page->_refcount.counter);
-        seq_printf(sf, "}\n\n");
-    }
-    seq_printf(sf, "-----VFSMOUNT-----\n");
-    seq_printf(sf, "mnt_flags: %uc\n", struct_vfsmount->mnt_flags);
-    seq_printf(sf, "superblock:{\n   blocksize in bits: %u\n", struct_vfsmount->mnt_sb->s_blocksize_bits);
-    seq_printf(sf, "   blocksize in bytes: %lu\n", struct_vfsmount->mnt_sb->s_blocksize);
-    seq_printf(sf, "   ref count: %d\n", struct_vfsmount->mnt_sb->s_count);
-    seq_printf(sf, "   maximum files size: %ld\n", struct_vfsmount->mnt_sb->s_maxbytes);
-    seq_printf(sf, "}\n");
+    int fl = flock(sf, LOCK_SH);
+    return 0;
+}
+
+static int kmod_release(struct node *inode, struct file *filp) {
+    pr_info("release\n");
     return 0;
 }
 
@@ -170,6 +192,7 @@ static int __init kmod_init(void) {
     kmod_root = debugfs_create_dir("kmod", NULL);
     kmod_args_file = debugfs_create_file( "kmod_args", 0666, kmod_root, NULL, &kmod_args_ops );
     kmod_result_file = debugfs_create_file( "kmod_result", 0666, kmod_root, NULL, &kmod_args_ops );
+    mutex_init(m);
     return 0;
 }
 

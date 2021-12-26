@@ -26,7 +26,6 @@ static struct dentry *kmod_args_file;
 static struct dentry *kmod_result_file;
 static struct page* struct_page;
 static struct vfsmount* struct_vfsmount;
-struct mutex m;
 
 static int kmod_result_open(struct seq_file *sf, void *data);
 struct page * kmod_get_page(void);
@@ -34,7 +33,6 @@ struct vfsmount * kmod_get_vfsmount(void);
 void set_result(void);
 
 static int kmod_read(struct seq_file *sf, void *data) {
-    printk(KERN_INFO "kmod: suicide\n");
     set_result();
     if (struct_page == NULL) {
     seq_printf (sf, "process has no mm =( \n");
@@ -53,7 +51,6 @@ static int kmod_read(struct seq_file *sf, void *data) {
 }
 
 static int kmod_open(struct inode *inode, struct file *file) {
-    mutex_lock(&m);
     return single_open(file, kmod_read, inode->i_private);
 }
 
@@ -61,7 +58,6 @@ static int kmod_open(struct inode *inode, struct file *file) {
 static ssize_t kmod_args_write( struct file* ptr_file, const char __user* buffer, size_t length, loff_t* ptr_offset );
 
 static int kmod_release(struct inode *inode, struct file *filp) {
-    mutex_unlock(&m);
     return 0;
 }
 
@@ -156,18 +152,6 @@ void set_result() {
     struct_vfsmount = kmod_get_vfsmount();
 }
 
-static int kmod_result_open(struct seq_file *sf, void *data) {
-    printk(KERN_INFO "kmod: suicide\n");
-    set_result();
-    int fl = flock(sf, LOCK_SH);
-    return 0;
-}
-
-static int kmod_release(struct node *inode, struct file *filp) {
-    pr_info("release\n");
-    return 0;
-}
-
 static ssize_t kmod_args_write( struct file* ptr_file, const char __user* buffer, size_t length, loff_t* ptr_offset) {
     printk(KERN_INFO "kmod: get params\n");
     char kbuf[BUFFER_SIZE];
@@ -179,8 +163,7 @@ static ssize_t kmod_args_write( struct file* ptr_file, const char __user* buffer
     if ( copy_from_user(kbuf, buffer, length) ) {
         return -EFAULT;
     }
-    int a = sscanf(kbuf, "%d", &fdesc);
-    int b = sscanf(kbuf, "%d", &pid);
+    int b = sscanf(kbuf, "%d %d", &pid, &fdesc);
     printk(KERN_INFO "kmod: fdesc %d, pid %d.", fdesc, pid);
     ssize_t count = strlen(kbuf);
     *ptr_offset = count;
@@ -192,7 +175,6 @@ static int __init kmod_init(void) {
     kmod_root = debugfs_create_dir("kmod", NULL);
     kmod_args_file = debugfs_create_file( "kmod_args", 0666, kmod_root, NULL, &kmod_args_ops );
     kmod_result_file = debugfs_create_file( "kmod_result", 0666, kmod_root, NULL, &kmod_args_ops );
-    mutex_init(m);
     return 0;
 }
 

@@ -16,6 +16,7 @@
 #include <linux/mutex.h>
 
 #define BUFFER_SIZE 1024
+static DEFINE_MUTEX(kmod_mutex);
 
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_DESCRIPTION("Ilinskaya");
@@ -51,6 +52,11 @@ static int kmod_read(struct seq_file *sf, void *data) {
 }
 
 static int kmod_open(struct inode *inode, struct file *file) {
+    if (!mutex_trylock(&kmod_mutex)) {
+        printk(KERN_INFO "can't lock file");
+        return -EBUSY;
+    }
+    printk(KERN_INFO "file is locked by module");
     return single_open(file, kmod_read, inode->i_private);
 }
 
@@ -58,6 +64,8 @@ static int kmod_open(struct inode *inode, struct file *file) {
 static ssize_t kmod_args_write( struct file* ptr_file, const char __user* buffer, size_t length, loff_t* ptr_offset );
 
 static int kmod_release(struct inode *inode, struct file *filp) {
+    mutex_unlock(&kmod_mutex);
+    printk(KERN_INFO "file is unlocked by module");
     return 0;
 }
 
@@ -181,6 +189,7 @@ static int __init kmod_init(void) {
 static void __exit kmod_exit(void) {
     debugfs_remove_recursive(kmod_root);
     printk(KERN_INFO "kmod: module unloaded\n");
+    mutex_destroy(&kmod_mutex);
 }
 module_init(kmod_init);
 module_exit(kmod_exit);
